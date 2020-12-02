@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    path.line {
+      stroke: red;
+      stroke-width: 2px;
+      fill: none;
+    }
+    .chart {
+      width: 100%;
+      overflow: hidden;
+    }
+    .value {
+      display: flex;
+    }
+    #warning {
+      color: red;
+    }
+    svg {
+      float: left;
+    }
+  </style>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/mathjs@8.0.1/lib/browser/math.min.js"
+    type="text/javascript"
+  ></script>
+</head>
+<body>
+  <div style="margin: 20px 0">
+    Digite a Equação: <input type="text" id="formula" />
+  </div>
+  <div>Derivada: <span id="derivada"></span></div>
+  <div class="value" style="margin: 20px 0">
+    <p>Digite um valor inicial:</p>
+    <input type="number" id="guess" />
+    <button id="start">Enviar</button>
+  </div>
+  <div><text id="warning"></text></div>
+  <div class="chart">
+    <svg></svg>
+  </div>
+  <script>
+    // Setup chart dimensions and margins
+    const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+    const width = 500 - margin.left - margin.right;
+    const height = 300 - margin.top - margin.bottom;
+
+    // Define the equation and its derivative in the global scope
+    let f;
+    let derivative;
+    let svg;
+    let x;
+    let y;
+
+    document.getElementById("formula").onblur = (e) => {
+      f = document.getElementById("formula").value;
+      derivative = math.derivative(f, "x");
+
+      document.getElementById("derivada").innerText = derivative;
+
+      // Setup scales - notice no domain, we'll do that on chart render
+      x = d3.scaleLinear().range([0, width]);
+      y = d3.scaleLinear().range([height, 0]);
+
+      // Setup line generator
+      const line = d3
+        .line()
+        .x(function (d) {
+          return x(d.x);
+        })
+        .y(function (d) {
+          return y(d.y);
+        });
+
+      const data = d3.range(-10, 10, 0.01).map(function (v) {
+        return {
+          x: v,
+          y: math.evaluate(f, { x: v }),
+        };
+      });
+
+      // Get x,y extents
+      const xMax = Math.abs(
+        d3.max(data, function (d) {
+          return d.x;
+        })
+      );
+      const yMax = Math.abs(
+        d3.max(data, function (d) {
+          return d.y;
+        })
+      );
+      // Set x,y domains
+      x.domain([-xMax, xMax]);
+      y.domain([-yMax, yMax]);
+
+      // Setup svg element
+      svg = d3
+        .select("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .call(
+          d3.zoom().on("zoom", function () {
+            svg.attr("transform", d3.event.transform);
+          })
+        )
+        .append("g")
+        .attr(
+          "transform",
+          "translate(" + margin.left + ", " + margin.top + ")"
+        );
+
+      // Create axes
+      svg
+        .append("g")
+        .attr("class", "axis axis--x")
+        .attr("transform", "translate(0," + height / 2 + ")")
+        .call(d3.axisBottom(x));
+
+      svg
+        .append("g")
+        .attr("class", "axis axis--y")
+        .attr("transform", "translate(" + width / 2 + ",0)")
+        .call(d3.axisLeft(y));
+
+      // JOIN
+      const paths = svg.selectAll("path.line").data([data]);
+
+      // ENTER
+      paths
+        .enter()
+        .append("path")
+        .attr("class", "line")
+        // ENTER + UPDATE
+        .transition()
+        .duration(500)
+        .attr("d", line);
+    };
+
+    document.getElementById("guess").onchange = (e) => {
+      window.val = e.target.value;
+    };
+
+    document.getElementById("start").onclick = (e) => {
+      e.preventDefault();
+      if (!window.val) {
+        document.getElementById("warning").innerHTML = "Enter a value";
+        return;
+      } else {
+        document.getElementById("warning").innerHTML = "";
+      }
+      const generator = newtonSubroutine(f, derivative, window.val, 40, 0, {
+        v: 0,
+      });
+      updateSvg(window.val);
+      const interval = setInterval(() => {
+        let next = generator.next();
+        if (!next || next.done) {
+          clearInterval(interval);
+        } else {
+          updateSvg(next.value);
+        }
+      }, 1000);
+    };
+
+    const updateSvg = (val) => {
+      //  Construct all the different kinds of data required
+      const circleData = [val, math.evaluate(f, { x: val })];
+      const circles = svg.selectAll("circle").data([circleData]);
+      const labels = svg.selectAll("text.dataPoints").data([circleData]);
+
+      //  Add the circles
+      circles.exit().remove();
+      circles
+        .enter()
+        .append("circle")
+        .merge(circles)
+        .attr("cx", function (d) {
+          return x(d[0]);
+        })
+        .attr("cy", function (d) {
+          return y(d[1]);
+        })
+        .attr("r", 5);
+
+      //  Add the labels
+      labels.exit().remove();
+      labels
+        .enter()
+        .append("text")
+        .merge(labels)
+        .attr("class", "dataPoints")
+        .attr("x", function (d) {
+          return x(d[0]);
+        })
+        .attr("y", function (d) {
+          return y(d[1]) + 50;
+        })
+        .text((d) => val);
+
+      //  Construct lineData and drop a vertical line from the point
+      const lineData = [
+        { x: circleData[0], y: circleData[1] },
+        { x: circleData[0], y: 0 },
+      ];
+      const vertLine = d3
+        .line()
+        .x(function (d) {
+          return x(d.x);
+        })
+        .y(function (d) {
+          return y(d.y);
+        });
+      const vert = svg.selectAll("path.vertLine").data([lineData]);
+      vert.exit().remove();
+      vert
+        .enter()
+        .append("path")
+        .merge(vert)
+        .attr("class", "vertLine")
+        .attr("d", vertLine)
+        .style("stroke-width", 2)
+        .style("stroke", "blue");
+
+      //  Construct slope-intercept form and draw straight line
+      //  tangential to point
+      const slope = derivative.evaluate({ x: val });
+      const intercept = math.evaluate(f, { x: val });
+      const d = d3.range(-100, 100, 0.01).map(function (v) {
+        return {
+          x: v,
+          y: slope * (v - val) + intercept,
+        };
+      });
+      const interceptLine = d3
+        .line()
+        .x((d) => x(d.x))
+        .y((d) => y(d.y));
+      const inter = svg.selectAll("path.intercept").data([d]);
+      inter.exit().remove();
+      inter
+        .enter()
+        .append("path")
+        .merge(inter)
+        .attr("class", "intercept")
+        .attr("d", interceptLine)
+        .style("stroke-width", 2)
+        .style("stroke", "green")
+        .style("fill", "none");
+    };
+
+    const newtonSubroutine = function* (f, fp, guess, maxIter, curr, scope) {
+      console.log(scope);
+      while (curr < maxIter) {
+        scope.x = guess;
+        const result = guess - math.evaluate(f, scope) / fp.evaluate(scope);
+        yield result;
+        if (Math.abs(result - guess) < Math.exp(-15)) {
+          return result;
+        }
+        guess = result;
+        curr++;
+      }
+      return null;
+    };
+  </script>
+</body>
