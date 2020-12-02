@@ -42,12 +42,12 @@
     <svg></svg>
   </div>
   <script>
-    // Setup chart dimensions and margins
+    // Configura grafico, dimensões e margem
     const margin = { top: 20, right: 20, bottom: 20, left: 20 };
     const width = 500 - margin.left - margin.right;
     const height = 300 - margin.top - margin.bottom;
 
-    // Define the equation and its derivative in the global scope
+    // Define as equações em escopo global
     let f;
     let derivative;
     let svg;
@@ -60,11 +60,11 @@
 
       document.getElementById("derivada").innerText = derivative;
 
-      // Setup scales - notice no domain, we'll do that on chart render
+      // Configura o gráfico e seta o domínio de acordo com os limites da função
       x = d3.scaleLinear().range([0, width]);
       y = d3.scaleLinear().range([height, 0]);
 
-      // Setup line generator
+      // Configura o gerador da reta
       const line = d3
         .line()
         .x(function (d) {
@@ -81,7 +81,7 @@
         };
       });
 
-      // Get x,y extents
+      // Pega os valores de x e y
       const xMax = Math.abs(
         d3.max(data, function (d) {
           return d.x;
@@ -92,11 +92,11 @@
           return d.y;
         })
       );
-      // Set x,y domains
+      // Configura os valores do domínio para x e y
       x.domain([-xMax, xMax]);
       y.domain([-yMax, yMax]);
 
-      // Setup svg element
+      // Configura o elemento svg no d3
       svg = d3
         .select("svg")
         .attr("width", width + margin.left + margin.right)
@@ -112,7 +112,7 @@
           "translate(" + margin.left + ", " + margin.top + ")"
         );
 
-      // Create axes
+      // Cria os vertices
       svg
         .append("g")
         .attr("class", "axis axis--x")
@@ -125,15 +125,13 @@
         .attr("transform", "translate(" + width / 2 + ",0)")
         .call(d3.axisLeft(y));
 
-      // JOIN
+      // Desenha a reta
       const paths = svg.selectAll("path.line").data([data]);
 
-      // ENTER
       paths
         .enter()
         .append("path")
         .attr("class", "line")
-        // ENTER + UPDATE
         .transition()
         .duration(500)
         .attr("d", line);
@@ -146,7 +144,7 @@
     document.getElementById("start").onclick = (e) => {
       e.preventDefault();
       if (!window.val) {
-        document.getElementById("warning").innerHTML = "Enter a value";
+        document.getElementById("warning").innerHTML = "Insira um valor";
         return;
       } else {
         document.getElementById("warning").innerHTML = "";
@@ -166,12 +164,12 @@
     };
 
     const updateSvg = (val) => {
-      //  Construct all the different kinds of data required
+      //  Constroi os pontos e dados no grafico
       const circleData = [val, math.evaluate(f, { x: val })];
       const circles = svg.selectAll("circle").data([circleData]);
       const labels = svg.selectAll("text.dataPoints").data([circleData]);
 
-      //  Add the circles
+      //  Adiciona os pontos
       circles.exit().remove();
       circles
         .enter()
@@ -185,7 +183,7 @@
         })
         .attr("r", 5);
 
-      //  Add the labels
+      //  Adiciona os textos
       labels.exit().remove();
       labels
         .enter()
@@ -200,7 +198,7 @@
         })
         .text((d) => val);
 
-      //  Construct lineData and drop a vertical line from the point
+      //  Constroi os dados da reta baseado no primeiro ponto vertical
       const lineData = [
         { x: circleData[0], y: circleData[1] },
         { x: circleData[0], y: 0 },
@@ -224,8 +222,7 @@
         .style("stroke-width", 2)
         .style("stroke", "blue");
 
-      //  Construct slope-intercept form and draw straight line
-      //  tangential to point
+      //  Controi o ponto de tange baseado na reta da função
       const slope = derivative.evaluate({ x: val });
       const intercept = math.evaluate(f, { x: val });
       const d = d3.range(-100, 100, 0.01).map(function (v) {
